@@ -8,6 +8,8 @@ The Cyber Mentor's guide: https://youtu.be/VXxH4n684HE?si=9GsGTobiPd9hLfCS
 https://youtu.be/VXxH4n684HE?si=9GsGTobiPd9hLfCS
 https://viblo.asia/p/leo-thang-dac-quyen-ngang-tren-active-directory-GyZJZdjNVjm#_12-kerberoasting-tren-kerberos-6
 https://attackersmindset.com/2021/10/20/detections-that-work-1/
+https://merlog.hashnode.dev/splunk-detection-windows-attack-p3-golden-ticket-silver-ticket
+https://www.scribd.com/document/873341400/14-Detecting-Windows-Attacks-With-Splunk
 
 ## Setup
 My setup includes 5 machines. Description down below:
@@ -31,22 +33,28 @@ Pass-the-password (Ptp) uses stolen passwords (which may be obtained via phishin
 
 Pass-the-hash (Pth) leverages the NTLM hash to authenticate to other machines or services on the network without knowing the original plaintext password. Because Windows supports SSO and uses the NTLMv2 protocol’s challenge/response mechanism, an attacker who obtains a hash can generate a valid response to a server challenge and be accepted as the account owner.
 
-First, I will demonstrate Pass-the-password technique by using Frank Castle credential. It shows that I can PtP over SMB on HOMELAB-ADDC-01
+First, I will demonstrate Pass-the-password technique by using Frank Castle credential. It shows that I can Ptp over SMB on HOMELAB-ADDC-01
+
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-1.png)
 
 Next, to perform Pass-the-hash, we must know the NTLM hash first. By using secretdump module in Impacket library, we can dump all the credentials on a machine if we have a compromised account. Our target is HOMELAB-PC-01
 
-
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-2.png)
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-3.png)
 Let’s try dumping on HOMELAB-PC-02 too
-
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-4.png)
 Suppose we don’t know anything about Jenny Smith’s account. On the dumping result above, we can see that we have her NTLM hash. This means we can perform a lateral movement here.
-Once again, use crackmapexec to Pth over SMB for both account and we could see that we can Pwned on both machine. 
+Once again, use crackmapexec to Pth over SMB for both accounts and we could see that we can Pwned on both machines. 
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-5.png)
+
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-6.png)
 
 ### *Detection*
 There are quite a lot of ways to detect Ptp and Pth. In my homelab, I use EventCode 4624 with Logon Process is NtLmSsp & Login Type is 3. Another type is using Logon Type 9 & Logon Process is seclogo
 
 index="endpoint" source="WinEventLog:Security" EventCode=4624 (Logon_Process=NtLmSsp Logon_Type=3 Account_Name="ANONYMOUS LOGON") OR (Logon_Type=9 Logon_Process=seclogo)
 
-
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/pth-7.png)
 
 ### Kerberoasting
 
@@ -62,11 +70,15 @@ In short, it leverages legitimate user activity: because users must request TGS 
 
 So, just like the process above, we will need SPNs first and request TGS ticket. This is can be done with GetUserSPNs module in Impacket
 
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/kerberoasting-1.png)
+
 We got the hash! Now bring this to your tool to crack. I am using hashcat with mode 13100 here 
 
-
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/kerberoasting-2.png)
 
 Wait for some times, depending on how strong your machine is. And voila! We have our password.
+
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/kerberoasting-3.png)
 
 ### *Detection*
 It can be difficult to identify Kerberoasting attacks. One of solution is to track down SPN request, if an account request too many services at the same time, it is likely a Kerberoasting attack
@@ -74,11 +86,16 @@ It can be difficult to identify Kerberoasting attacks. One of solution is to tra
 Event 4768 (A Kerberos Authentication Ticket [TGT] was Requested) and 4769 (A Kerberos Service Ticket was Requested) will be those need to be looked at first, then if the number of time that the services are requested larger than X (X can be 10, 15, … depend on the monitoring network) we can confirm that is an alert
 
 index=endpoint EventCode IN (4769, 4768) Keywords="Audit Success" NOT Service_Name IN ("*$", "krbtgt")
+
 | stats values(Service_Name) as Unique_Services_Requested dc(Service_Name) as Total_Services_Requested by Account_Name Client_Address _time
+
 | sort 0 - Total_Services_Requested
+
 | where Total_Services_Requested > 10
 
 *(In the picture below, there is not the final line, since I only set up 1 SPN. So if I include it, there will be no result. But in real life scenario, it definitely need that last part)*
+
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/kerberoasting-4.png)
 
 ## Golden Ticket
 
@@ -88,9 +105,15 @@ The attack typically begins with initial compromise and privilege escalation to 
 
 Here is when I use mimikatz to get lsass dump, extract the NThash + SID.
 
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/goldenticket-1.png)
+
 Using this information, I can forge a fake ticket and submit to the current session. 
 
-Using misc::cmd I can spawn a new cmd with system privilege
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/goldenticket-2.png)
+
+Using misc::cmd I can spawn a new cmd with system privilege and access other machines in the network
+
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/goldenticket-3.png)
 
 ### *Detection*
 
@@ -106,5 +129,6 @@ index=endpoint EventCode IN (4768, 4769, 4770)
 | rex field=user "(?<username>[^@]+)" 
 | rex field=src_ip "(\:\:ffff\:)?(?<src_ip_4>[0-9\.]+)" 
 | transaction username, src_ip_4 maxspan=10h keepevicted=true startswith=(EventCode=4768) | search NOT user="*$@*" 
-| table  _time, ComputerName, username, src_ip_4, service_name, category
+| table _time, ComputerName, username, src_ip_4, service_name, category
 
+![](https://github.com/caspernguyen1493/Homelab-Active-Directory/blob/main/assets/goldenticket-4.png)
