@@ -80,7 +80,7 @@ index=endpoint EventCode IN (4769, 4768) Keywords="Audit Success" NOT Service_Na
 
 *(In the picture below, there is not the final line, since I only set up 1 SPN. So if I include it, there will be no result. But in real life scenario, it definitely need that last part)*
 
-### *Golden Ticket*
+## Golden Ticket
 
 Golden Ticket is a Kerberos attack that lets an attacker forge a Ticket Granting Ticket (TGT) by extracting the krbtgt account’s hash (NTHash) and the domain SID. With this information, the attacker can sign a custom PAC (for example granting Domain Admin privileges) and gain broad access across the domain. 
 
@@ -90,7 +90,7 @@ Here is when I use mimikatz to get lsass dump, extract the NThash + SID.
 
 Using this information, I can forge a fake ticket and submit to the current session
 
-### Detection
+### *Detection*
 
 The detection of Golden Ticket can be quite challenging, since this technique is stealthy and can be done offline. A common approach is to check if the kbrtgt’s hash is dumped: DCSync attack, Access to NTDS.dit, lsass.exe on DC
 
