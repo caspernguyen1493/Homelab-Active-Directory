@@ -88,7 +88,9 @@ The attack typically begins with initial compromise and privilege escalation to 
 
 Here is when I use mimikatz to get lsass dump, extract the NThash + SID.
 
-Using this information, I can forge a fake ticket and submit to the current session
+Using this information, I can forge a fake ticket and submit to the current session. 
+
+Using misc::cmd I can spawn a new cmd with system privilege
 
 ### *Detection*
 
